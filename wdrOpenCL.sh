@@ -3,8 +3,7 @@ ndk-build
 adb root
 adb remount
 adb push /Users/linqi/WorkDir/OpenCL_Pro/wdr/obj/local/armeabi-v7a/opencl-wdr /system/bin
-adb push ./jni/image_scaling.cl /system/bin
-#adb shell chmod 777 /system/bin/image_scaling.cl
+adb push ./wdr.cl /system/bin
 #adb push /Users/linqi/WorkDir/OpenCL_Pro/wdr/obj/local/armeabi-v7a/libopencv_java3.so /system/lib
 adb shell chmod 777 /system/bin/opencl-wdr
 #adb shell /system/bin/opencl-wdr
