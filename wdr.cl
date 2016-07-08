@@ -1,11 +1,15 @@
 
+#define LOCAL_BUFFER_SIZE 64
+
+#define min(a,b)        ((a) > (b)?(b):(a))
+#define max(a,b)        ((a) > (b)?(a):(b))
 
 __kernel void preSumHorizontal( __global unsigned char* _pSrc ,
                             __global unsigned int* _pDst ,const int width ,const int height)
 {
     const int line_index = get_global_id(0);
     __global unsigned char* pSrc = line_index*width + _pSrc;
-    __global unsigned int* pDst = line_index*width + _pDst;
+    __global unsigned int*  pDst = line_index*width + _pDst;
 
     pDst[0] = pSrc[0];
     for(int i = 1; i < height; i++) {
@@ -26,8 +30,6 @@ __kernel void preSumVertical( __global unsigned int* _pSrc ,
     }
 }
 
-#define min(a,b)        ((a) > (b)?(b):(a))
-#define max(a,b)        ((a) > (b)?(a):(b))
 
 __kernel void toneMapping( __global unsigned int* pIntegral ,__global unsigned char* pGray,__global float* mToneMapLut,
                             __global unsigned char* pDst, const int nCols ,const int nRows,const int mBlkSize)

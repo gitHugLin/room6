@@ -36,7 +36,7 @@ wdrOpenCL::wdrOpenCL():mNumMemoryObjects(5)
     mGrayBufferSize = 0;
     mIntegralBufferSize= 0;
 
-    float mGainOffset = 0.18;
+    float mGainOffset = 0.25;
     mToneMapLut = NULL;
     mToneMapLut = new float[256*256];
     for(int y = 0; y < 256; y++)
@@ -456,7 +456,7 @@ bool wdrOpenCL::preSumHorizontal()
        return false;
     }
 
-// workBegin();
+workBegin();
     cl_int width = mWidth;
     cl_int height = mHeight;
 
@@ -488,7 +488,7 @@ bool wdrOpenCL::preSumHorizontal()
         cerr << "Failed waiting for kernel execution to finish. " << __FILE__ << ":"<< __LINE__ << endl;
         return false;
     }
-    // workEnd("preSumHorizontal");
+workEnd("preSumHorizontal");
 
     /* Release the event object. */
     if (!checkSuccess(clReleaseEvent(event))) {
@@ -536,7 +536,7 @@ bool wdrOpenCL::preSumVertical()
        cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
        return false;
     }
-    // workBegin();
+workBegin();
 
     cl_int width = mWidth;
     cl_int height = mHeight;
@@ -570,7 +570,7 @@ bool wdrOpenCL::preSumVertical()
         cerr << "Failed waiting for kernel execution to finish. " << __FILE__ << ":"<< __LINE__ << endl;
         return false;
     }
-// workEnd("preSumVertical");
+workEnd("preSumVertical");
     /* Print the profiling information for the event. */
     //printProfilingInfo(event);
     /* Release the event object. */
@@ -637,7 +637,7 @@ bool wdrOpenCL::toneMapping()
        cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
        return false;
     }
-// workBegin();
+workBegin();
     cl_int width = mWidth;
     cl_int height = mHeight;
     cl_int blkSize = 15;
@@ -673,7 +673,7 @@ bool wdrOpenCL::toneMapping()
         cerr << "Failed waiting for kernel execution to finish. " << __FILE__ << ":"<< __LINE__ << endl;
         return false;
     }
-    // workEnd("toneMapping");
+workEnd("toneMapping");
     /* Release the event object. */
     if (!checkSuccess(clReleaseEvent(event))) {
         cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
@@ -704,16 +704,16 @@ bool wdrOpenCL::toneMapping()
 
 bool wdrOpenCL::integralImage()
 {
-    workBegin();
+    // workBegin();
     preSumHorizontal();
     preSumVertical();
     toneMapping();
-    workEnd("Time of integralImage:");
+    // workEnd("Time of integralImage:");
 }
 
 void wdrOpenCL::process()
 {
-    loadData("/data/local/srcImage.jpg",false);
+    loadData("/data/local/tunnel.pgm",true);
     //workBegin();
     initWdr();
     integralImage();
