@@ -18,32 +18,62 @@ static void workEnd(char *tag)
     printf("[TAG: %s ]:TIME = %lf ms \n",tag,gTime);
 }
 
-wdrOpenCL::wdrOpenCL():mNumMemoryObjects(2)
+wdrOpenCL::wdrOpenCL():mNumMemoryObjects(5)
 {
     mContext = 0;
     mCommandQueue = 0;
     mProgram = 0;
     mDevice = 0;
-    mKernel = 0;
     mMemoryObjects[0] = 0;
     mMemoryObjects[1] = 0;
     mStart = 0;
     mEnd = 0;
     mGrayBuffer = NULL;
-    mIntefralBuffer = NULL;
+    mIntegralBuffer = NULL;
     mWidth = 0;
     mHeight = 0;
     mArraySize = 0;
     mGrayBufferSize = 0;
-    mIntefralBufferSize= 0;
+    mIntegralBufferSize= 0;
+
+    float mGainOffset = 0.18;
+    mToneMapLut = NULL;
+    mToneMapLut = new float[256*256];
+    for(int y = 0; y < 256; y++)
+        for (int x = 0; x < 256; x++) {
+            float lumiBlk = (float)y/255,lumiPixel = (float)x/255;
+            mToneMapLut[y*256+x] = (1 + mGainOffset + lumiBlk*lumiPixel)/(lumiBlk+lumiPixel + mGainOffset);
+        }
 }
 
 wdrOpenCL::~wdrOpenCL() {
-    if (NULL != mIntefralBuffer) {
-        delete []mIntefralBuffer;
-        mIntefralBuffer = NULL;
+    if (NULL != mIntegralBuffer) {
+        delete []mIntegralBuffer;
+        mIntegralBuffer = NULL;
+    }
+    if (NULL != mToneMapLut) {
+        delete []mToneMapLut;
+        mToneMapLut = NULL;
     }
     mGrayBuffer = NULL;
+    cleanUpOpenCL(mContext, mCommandQueue, mProgram, 0, mMemoryObjects, mNumMemoryObjects);
+    if (mKernelTM != 0) {
+        if (!checkSuccess(clReleaseKernel(mKernelTM))) {
+            cerr << "Releasing the OpenCL kernel failed. " << __FILE__ << ":"<< __LINE__ << endl;
+        }
+    }
+    if (mKernelPSV != 0) {
+        if (!checkSuccess(clReleaseKernel(mKernelPSV))) {
+            cerr << "Releasing the OpenCL kernel failed. " << __FILE__ << ":"<< __LINE__ << endl;
+        }
+    }
+    if (mKernelPSH != 0) {
+        if (!checkSuccess(clReleaseKernel(mKernelPSH))) {
+            cerr << "Releasing the OpenCL kernel failed. " << __FILE__ << ":"<< __LINE__ << endl;
+        }
+    }
+
+
 }
 
 string wdrOpenCL::errorNumberToString(cl_int errorNumber)
@@ -326,95 +356,21 @@ bool wdrOpenCL::createProgram(cl_context context, cl_device_id device, string fi
     return true;
 }
 
-bool wdrOpenCL::RGBToRGBA(const unsigned char* const rgbData, unsigned char* const rgbaData, INT32 width, INT32 height)
-{
-    if (rgbData == NULL) {
-        cerr << "rgbData cannot be NULL. " << __FILE__ << ":"<< __LINE__ << endl;
-        return false;
-    }
-
-    if (rgbaData == NULL) {
-        cerr << "rgbaData cannot be NULL. " << __FILE__ << ":"<< __LINE__ << endl;
-        return false;
-    }
-
-    for (int n = 0; n < width * height; n++) {
-        /* Copy the RGB components directly. */
-        rgbaData[4 * n + 0] = rgbData[3 * n + 0];
-        rgbaData[4 * n + 1] = rgbData[3 * n + 1];
-        rgbaData[4 * n + 2] = rgbData[3 * n + 2];
-
-        /* Set the alpha channel to 255 (fully opaque). */
-        rgbaData[4 * n + 3] = (unsigned char)255;
-    }
-    return true;
-}
-
-bool wdrOpenCL::RGBAToRGB(const unsigned char* const rgbaData, unsigned char* const rgbData, INT32 width, INT32 height)
-{
-    if (rgbaData == NULL) {
-        cerr << "rgbaData cannot be NULL. " << __FILE__ << ":"<< __LINE__ << endl;
-        return false;
-    }
-
-    if (rgbData == NULL) {
-        cerr << "rgbData cannot be NULL. " << __FILE__ << ":"<< __LINE__ << endl;
-        return false;
-    }
-
-    for (int n = 0; n < width * height; n++) {
-        /* Copy the RGB components but throw away the alpha channel. */
-        rgbData[3 * n + 0] = rgbaData[4 * n + 0];
-        rgbData[3 * n + 1] = rgbaData[4 * n + 1];
-        rgbData[3 * n + 2] = rgbaData[4 * n + 2];
-    }
-    return true;
-}
-
-INT32 wdrOpenCL::initOpenCL() {
-    int ret = 1;
-    if (!createContext(&mContext)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create an OpenCL context. " << __FILE__ << ":"<< __LINE__ << endl;
-        return -1;
-    }
-
-    if (!createCommandQueue(mContext, &mCommandQueue, &mDevice)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create the OpenCL command queue. " << __FILE__ << ":"<< __LINE__ << endl;
-        return -1;
-    }
-
-    if (!createProgram(mContext, mDevice, "image_scaling.cl", &mProgram)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create OpenCL program." << __FILE__ << ":"<< __LINE__ << endl;
-        return -1;
-    }
-
-    mKernel = clCreateKernel(mProgram, "image_scaling", &mErrorNumber);
-    if (!checkSuccess(mErrorNumber)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create OpenCL kernel. " << __FILE__ << ":"<< __LINE__ << endl;
-        return -1;
-    }
-    return ret;
-}
-
 bool wdrOpenCL::initWdr()
 {
     bool ret = true;
     if (!createContext(&mContext)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, 0, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed to create an OpenCL context. " << __FILE__ << ":"<< __LINE__ << endl;
         return false;
     }
     if (!createCommandQueue(mContext, &mCommandQueue, &mDevice)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, 0, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed to create the OpenCL command queue. " << __FILE__ << ":"<< __LINE__ << endl;
         return false;
     }
     if (!createProgram(mContext, mDevice, "wdr.cl", &mProgram)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, 0, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed to create OpenCL program." << __FILE__ << ":"<< __LINE__ << endl;
         return false;
     }
@@ -436,11 +392,36 @@ bool wdrOpenCL::initWdr()
         cerr << "Failed to create OpenCL kernel. " << __FILE__ << ":"<< __LINE__ << endl;
         return false;
     }
+    bool createMemoryObjectsSuccess = true;
+    mMemoryObjects[0] = clCreateBuffer(mContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, mGrayBufferSize, NULL, &mErrorNumber);
+    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
+    mMemoryObjects[1] = clCreateBuffer(mContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, mIntegralBufferSize, NULL, &mErrorNumber);
+    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
+    mMemoryObjects[2] = clCreateBuffer(mContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, mIntegralBufferSize, NULL, &mErrorNumber);
+    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
+    mMemoryObjects[3] = clCreateBuffer(mContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, mGrayBufferSize, NULL, &mErrorNumber);
+    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
+    mMemoryObjects[4] = clCreateBuffer(mContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, 256*256*sizeof(cl_float), NULL, &mErrorNumber);
+    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
+
+    if (!createMemoryObjectsSuccess) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, 0, mMemoryObjects, mNumMemoryObjects);
+        cerr << "Failed creating the buffers. " << __FILE__ << ":"<< __LINE__ << endl;
+    }
 }
 
-bool wdrOpenCL::loadData(string path) {
+bool wdrOpenCL::loadData(string path,bool pgm) {
     bool ret = true;
-    mSrcImage = imread(path);
+    Mat rgb;
+    if(pgm) {
+        Mat bayer;
+        bayer = imread(path,0);
+        cvtColor(bayer, rgb, CV_BayerBG2RGB);
+    } else {
+        rgb = imread(path);
+    }
+
+    cvtColor(rgb, mSrcImage, CV_RGB2GRAY);
     if(mSrcImage.empty()) {
         printf("Error: can not loat picture\n" );
         ret = false;
@@ -449,355 +430,292 @@ bool wdrOpenCL::loadData(string path) {
     mHeight = mSrcImage.rows;
     mArraySize = mWidth*mHeight;
     mGrayBufferSize = mArraySize*sizeof(cl_uchar);
-    mIntefralBufferSize = mArraySize*sizeof(cl_uint);
+    mIntegralBufferSize = mArraySize*sizeof(cl_uint);
     mGrayBuffer = mSrcImage.data;
-    mIntefralBuffer = new UINT32[mArraySize];
+    mIntegralBuffer = new UINT32[mArraySize];
     return ret;
 }
 
-void wdrOpenCL::preSumHorizontal()
+bool wdrOpenCL::preSumHorizontal()
 {
-    workBegin();
-    if (!createContext(&mContext)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create an OpenCL context. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    if (!createCommandQueue(mContext, &mCommandQueue, &mDevice)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create the OpenCL command queue. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    if (!createProgram(mContext, mDevice, "wdr.cl", &mProgram)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create OpenCL program." << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    mKernel = clCreateKernel(mProgram, "preSumHorizontal", &mErrorNumber);
-    if (!checkSuccess(mErrorNumber)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create OpenCL kernel. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    workEnd("initOpenCL part1");
-    /*
-     * Ask the OpenCL implementation to allocate buffers for the data.
-     * We ask the OpenCL implemenation to allocate memory rather than allocating
-     * it on the CPU to avoid having to copy the data later.
-     * The read/write flags relate to accesses to the memory from within the kernel.
-     */
-     workBegin();
-    bool createMemoryObjectsSuccess = true;
-    mMemoryObjects[0] = clCreateBuffer(mContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, mGrayBufferSize, NULL, &mErrorNumber);
-    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
-    mMemoryObjects[1] = clCreateBuffer(mContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, mIntefralBufferSize, NULL, &mErrorNumber);
-    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
-
-    if (!createMemoryObjectsSuccess) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed creating the image. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-
+    bool ret = true;
     /* Map the memory buffers created by the OpenCL implementation to pointers so we can access them on the CPU. */
     bool mapMemoryObjectsSuccess = true;
     cl_uchar* inputGrayBuffer = (cl_uchar*)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[0],
                                     CL_TRUE, CL_MAP_WRITE, 0, mGrayBufferSize, 0, NULL, NULL, &mErrorNumber);
     mapMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
     if (!mapMemoryObjectsSuccess) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSH, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed creating the image. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
+    }
+    memcpy(inputGrayBuffer,mGrayBuffer,mGrayBufferSize);
+    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[0], inputGrayBuffer, 0, NULL, NULL))) {
+       cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSH, mMemoryObjects, mNumMemoryObjects);
+       cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
+       return false;
     }
 
-    /*
-     * Unmap the memory objects as we have finished using them from the CPU side.
-     * We unmap the memory because otherwise:
-     * - reads and writes to that memory from inside a kernel on the OpenCL side are undefined.
-     * - the OpenCL implementation cannot free the memory when it is finished.
-     */
-    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[0], inputGrayBuffer, 0, NULL, NULL))) {
-       cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-       cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-workEnd("initOpenCL part2");
-workBegin();
+// workBegin();
     cl_int width = mWidth;
     cl_int height = mHeight;
 
     /* Setup the kernel arguments. */
     bool setKernelArgumentsSuccess = true;
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 0, sizeof(cl_mem), &mMemoryObjects[0]));
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 1, sizeof(cl_mem), &mMemoryObjects[1]));
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 2, sizeof(cl_int), &width));
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 3, sizeof(cl_int), &height));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelPSH, 0, sizeof(cl_mem), &mMemoryObjects[0]));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelPSH, 1, sizeof(cl_mem), &mMemoryObjects[1]));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelPSH, 2, sizeof(cl_int), &width));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelPSH, 3, sizeof(cl_int), &height));
     if (!setKernelArgumentsSuccess) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSH, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed setting OpenCL kernel arguments. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
 
     /* An event to associate with the Kernel. Allows us to retrieve profiling information later. */
     cl_event event = 0;
     /* [Global work size] */
-    /*
-     * Each instance of our OpenCL kernel operates on a single element of each array so the number of
-     * instances needed is the number of elements in the array.
-     */
-    workEnd("clSetKernelArg");
-    workBegin();
     size_t globalWorksize[2] = {1, height};
     /* Enqueue the kernel */
-    if (!checkSuccess(clEnqueueNDRangeKernel(mCommandQueue, mKernel, 2, NULL, globalWorksize, NULL, 0, NULL, &event))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+    if (!checkSuccess(clEnqueueNDRangeKernel(mCommandQueue, mKernelPSH, 2, NULL, globalWorksize, NULL, 0, NULL, &event))) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSH, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed enqueuing the kernel. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
-    /* [Global work size] */
     /* Wait for kernel execution completion. */
     if (!checkSuccess(clFinish(mCommandQueue))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSH, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed waiting for kernel execution to finish. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
-    workEnd("clEnqueueNDRangeKernel");
-    workBegin();
-    /* Print the profiling information for the event. */
-    //printProfilingInfo(event);
+    // workEnd("preSumHorizontal");
+
     /* Release the event object. */
     if (!checkSuccess(clReleaseEvent(event))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSH, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed releasing the event object. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
     /* Get a pointer to the output data. */
     cl_uint* outputIntegralBuffer = (cl_uint*)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[1],
-                                    CL_TRUE, CL_MAP_READ, 0, mIntefralBufferSize, 0, NULL, NULL, &mErrorNumber);
+                                    CL_TRUE, CL_MAP_READ, 0, mIntegralBufferSize, 0, NULL, NULL, &mErrorNumber);
     if (!checkSuccess(mErrorNumber)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSH, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed to map buffer. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
-    workEnd("clEnqueueMapBuffer");
+    memcpy(mIntegralBuffer,outputIntegralBuffer,mIntegralBufferSize);
     /* Unmap the memory object as we are finished using them from the CPU side. */
     if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[1], outputIntegralBuffer, 0, NULL, NULL))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSH, mMemoryObjects, mNumMemoryObjects);
         cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
     /* Release OpenCL objects. */
-    cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
     printf("finished preSumHorizontal!\n");
+    return ret;
 }
 
-void wdrOpenCL::preSumVertical()
+bool wdrOpenCL::preSumVertical()
 {
-    if (!createContext(&mContext)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create an OpenCL context. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    if (!createCommandQueue(mContext, &mCommandQueue, &mDevice)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create the OpenCL command queue. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    if (!createProgram(mContext, mDevice, "preSumVertical.cl", &mProgram)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create OpenCL program." << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    mKernel = clCreateKernel(mProgram, "preSumVertical", &mErrorNumber);
-    if (!checkSuccess(mErrorNumber)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed to create OpenCL kernel. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    /*
-     * Ask the OpenCL implementation to allocate buffers for the data.
-     * We ask the OpenCL implemenation to allocate memory rather than allocating
-     * it on the CPU to avoid having to copy the data later.
-     * The read/write flags relate to accesses to the memory from within the kernel.
-     */
-    bool createMemoryObjectsSuccess = true;
-    mMemoryObjects[0] = clCreateBuffer(mContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, mGrayBufferSize, NULL, &mErrorNumber);
-    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
-    mMemoryObjects[1] = clCreateBuffer(mContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, mIntefralBufferSize, NULL, &mErrorNumber);
-    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
-
-    if (!createMemoryObjectsSuccess) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed creating the image. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-
+    bool ret = true;
     /* Map the memory buffers created by the OpenCL implementation to pointers so we can access them on the CPU. */
     bool mapMemoryObjectsSuccess = true;
-    cl_uchar* inputGrayBuffer = (cl_uchar*)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[0],
-                                    CL_TRUE, CL_MAP_WRITE, 0, mGrayBufferSize, 0, NULL, NULL, &mErrorNumber);
+    cl_uint* inputInteBuffer = (cl_uint*)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[2],
+                                    CL_TRUE, CL_MAP_WRITE, 0, mIntegralBufferSize, 0, NULL, NULL, &mErrorNumber);
     mapMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
     if (!mapMemoryObjectsSuccess) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed creating the image. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
+    memcpy(inputInteBuffer,mIntegralBuffer,mIntegralBufferSize);
 
-    /*
-     * Unmap the memory objects as we have finished using them from the CPU side.
-     * We unmap the memory because otherwise:
-     * - reads and writes to that memory from inside a kernel on the OpenCL side are undefined.
-     * - the OpenCL implementation cannot free the memory when it is finished.
-     */
-    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[0], inputGrayBuffer, 0, NULL, NULL))) {
-       cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[2], inputInteBuffer, 0, NULL, NULL))) {
+       cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSV, mMemoryObjects, mNumMemoryObjects);
        cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
+       return false;
     }
+    // workBegin();
 
     cl_int width = mWidth;
     cl_int height = mHeight;
 
     /* Setup the kernel arguments. */
     bool setKernelArgumentsSuccess = true;
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 0, sizeof(cl_mem), &mMemoryObjects[0]));
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 1, sizeof(cl_mem), &mMemoryObjects[1]));
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 2, sizeof(cl_int), &width));
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 3, sizeof(cl_int), &height));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelPSV, 0, sizeof(cl_mem), &mMemoryObjects[2]));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelPSV, 1, sizeof(cl_mem), &mMemoryObjects[1]));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelPSV, 2, sizeof(cl_int), &width));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelPSV, 3, sizeof(cl_int), &height));
     if (!setKernelArgumentsSuccess) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSV, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed setting OpenCL kernel arguments. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
+    }
+
+    /* An event to associate with the Kernel. Allows us to retrieve profiling information later. */
+    cl_event event = 0;
+
+    size_t globalWorksize[2] = {width, 1};
+    /* Enqueue the kernel */
+    if (!checkSuccess(clEnqueueNDRangeKernel(mCommandQueue, mKernelPSV, 2, NULL, globalWorksize, NULL, 0, NULL, &event))) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSV, mMemoryObjects, mNumMemoryObjects);
+        cerr << "Failed enqueuing the kernel. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
+    }
+    /* [Global work size] */
+    /* Wait for kernel execution completion. */
+    if (!checkSuccess(clFinish(mCommandQueue))) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSV, mMemoryObjects, mNumMemoryObjects);
+        cerr << "Failed waiting for kernel execution to finish. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
+    }
+// workEnd("preSumVertical");
+    /* Print the profiling information for the event. */
+    //printProfilingInfo(event);
+    /* Release the event object. */
+    if (!checkSuccess(clReleaseEvent(event))) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSV, mMemoryObjects, mNumMemoryObjects);
+        cerr << "Failed releasing the event object. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
+    }
+    /* Get a pointer to the output data. */
+    cl_uint* outputIntegralBuffer = (cl_uint*)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[1],
+                                    CL_TRUE, CL_MAP_READ, 0, mIntegralBufferSize, 0, NULL, NULL, &mErrorNumber);
+    if (!checkSuccess(mErrorNumber)) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSV, mMemoryObjects, mNumMemoryObjects);
+        cerr << "Failed to map buffer. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
+    }
+    memcpy(mIntegralBuffer,outputIntegralBuffer,mIntegralBufferSize);
+
+    /* Unmap the memory object as we are finished using them from the CPU side. */
+    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[1], outputIntegralBuffer, 0, NULL, NULL))) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelPSV, mMemoryObjects, mNumMemoryObjects);
+        cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
+    }
+    /* Release OpenCL objects. */
+    printf("finished preSumVertical!\n");
+    return ret;
+}
+
+bool wdrOpenCL::toneMapping()
+{
+    bool ret = true;
+    bool mapMemoryObjectsSuccess = true;
+    cl_uchar* inputGrayBuffer = (cl_uchar*)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[0],
+                                    CL_TRUE, CL_MAP_WRITE, 0, mGrayBufferSize, 0, NULL, NULL, &mErrorNumber);
+    mapMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
+    cl_uint* inputInteBuffer = (cl_uint*)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[2],
+                                    CL_TRUE, CL_MAP_WRITE, 0, mIntegralBufferSize, 0, NULL, NULL, &mErrorNumber);
+    mapMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
+    cl_float* inputLutBuffer = (cl_float*)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[4],
+                                    CL_TRUE, CL_MAP_WRITE, 0, 256*256*sizeof(cl_float), 0, NULL, NULL, &mErrorNumber);
+    mapMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
+    if (!mapMemoryObjectsSuccess) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
+        cerr << "Failed creating the image. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
+    }
+    memcpy(inputGrayBuffer,mGrayBuffer,mGrayBufferSize);
+    memcpy(inputInteBuffer,mIntegralBuffer,mIntegralBufferSize);
+    memcpy(inputLutBuffer,mToneMapLut,256*256*sizeof(cl_float));
+
+    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[0], inputGrayBuffer, 0, NULL, NULL))) {
+       cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
+       cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
+       return false;
+    }
+    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[2], inputInteBuffer, 0, NULL, NULL))) {
+       cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
+       cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
+       return false;
+    }
+    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[4], inputLutBuffer, 0, NULL, NULL))) {
+       cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
+       cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
+       return false;
+    }
+// workBegin();
+    cl_int width = mWidth;
+    cl_int height = mHeight;
+    cl_int blkSize = 15;
+
+    /* Setup the kernel arguments. */
+    bool setKernelArgumentsSuccess = true;
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelTM, 0, sizeof(cl_mem), &mMemoryObjects[2]));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelTM, 1, sizeof(cl_mem), &mMemoryObjects[0]));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelTM, 2, sizeof(cl_mem), &mMemoryObjects[4]));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelTM, 3, sizeof(cl_mem), &mMemoryObjects[3]));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelTM, 4, sizeof(cl_int), &width));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelTM, 5, sizeof(cl_int), &height));
+    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernelTM, 6, sizeof(cl_int), &blkSize));
+    if (!setKernelArgumentsSuccess) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
+        cerr << "Failed setting OpenCL kernel arguments. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
 
     /* An event to associate with the Kernel. Allows us to retrieve profiling information later. */
     cl_event event = 0;
     /* [Global work size] */
-    /*
-     * Each instance of our OpenCL kernel operates on a single element of each array so the number of
-     * instances needed is the number of elements in the array.
-     */
-     workBegin();
-    size_t globalWorksize[2] = {1, height};
+    size_t globalWorksize[2] = {height, width};
     /* Enqueue the kernel */
-    if (!checkSuccess(clEnqueueNDRangeKernel(mCommandQueue, mKernel, 2, NULL, globalWorksize, NULL, 0, NULL, &event))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+    if (!checkSuccess(clEnqueueNDRangeKernel(mCommandQueue, mKernelTM, 2, NULL, globalWorksize, NULL, 0, NULL, &event))) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed enqueuing the kernel. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
-    /* [Global work size] */
     /* Wait for kernel execution completion. */
     if (!checkSuccess(clFinish(mCommandQueue))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed waiting for kernel execution to finish. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
-    workEnd("clEnqueueNDRangeKernel");
-    /* Print the profiling information for the event. */
-    //printProfilingInfo(event);
+    // workEnd("toneMapping");
     /* Release the event object. */
     if (!checkSuccess(clReleaseEvent(event))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed releasing the event object. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
     /* Get a pointer to the output data. */
-    cl_uint* outputIntegralBuffer = (cl_uint*)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[1],
-                                    CL_TRUE, CL_MAP_READ, 0, mIntefralBufferSize, 0, NULL, NULL, &mErrorNumber);
+    cl_uchar* outputBuffer = (cl_uchar *)clEnqueueMapBuffer(mCommandQueue, mMemoryObjects[3],
+                                    CL_TRUE, CL_MAP_READ, 0, mGrayBufferSize, 0, NULL, NULL, &mErrorNumber);
     if (!checkSuccess(mErrorNumber)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
         cerr << "Failed to map buffer. " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
+    memcpy(mGrayBuffer,outputBuffer,mGrayBufferSize);
+    Mat oImage = Mat(mHeight, mWidth, CV_8UC1, outputBuffer);
+    imwrite("/data/local/wdr_cl.jpg", oImage);
     /* Unmap the memory object as we are finished using them from the CPU side. */
-    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[1], outputIntegralBuffer, 0, NULL, NULL))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
+    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[3], outputBuffer, 0, NULL, NULL))) {
+        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernelTM, mMemoryObjects, mNumMemoryObjects);
         cerr << "Unmapping memory objects failed " << __FILE__ << ":"<< __LINE__ << endl;
+        return false;
     }
     /* Release OpenCL objects. */
-    cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-    printf("finished preSumVertical!\n");
+    printf("finished toneMapping!\n");
+    return ret;
 }
 
-void wdrOpenCL::integralImage()
+bool wdrOpenCL::integralImage()
 {
+    workBegin();
     preSumHorizontal();
+    preSumVertical();
+    toneMapping();
+    workEnd("Time of integralImage:");
 }
 
 void wdrOpenCL::process()
 {
-    loadData("/data/local/input.jpg");
+    loadData("/data/local/srcImage.jpg",false);
     //workBegin();
+    initWdr();
     integralImage();
     //workEnd("Time of Process:");
-}
-
-void wdrOpenCL::scale()
-{
-    loadData("/data/local/input.jpg");
-    initOpenCL();
-    const int scaleFactor = 8;
-    INT32 newWidth = mWidth*scaleFactor;
-    INT32 newHeight = mHeight*scaleFactor;
-
-    cl_image_format format;
-    format.image_channel_data_type = CL_UNORM_INT8;
-    format.image_channel_order = CL_RGBA;
-    bool createMemoryObjectsSuccess = true;
-
-    mMemoryObjects[0] = clCreateImage2D(mContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, &format, mWidth, mHeight, 0, NULL, &mErrorNumber);
-    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
-
-    mMemoryObjects[1] = clCreateImage2D(mContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, &format, newWidth, newHeight, 0, NULL, &mErrorNumber);
-    createMemoryObjectsSuccess &= checkSuccess(mErrorNumber);
-
-    if (!createMemoryObjectsSuccess) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed creating the image. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-
-    size_t origin[3] = {0, 0, 0};
-    size_t region[3] = {mWidth, mHeight, 1};
-    size_t rowPitch;
-    //workBegin();
-    unsigned char* inputImageRGBA = (unsigned char*)clEnqueueMapImage(mCommandQueue,  mMemoryObjects[0],
-                CL_TRUE, CL_MAP_WRITE, origin, region, &rowPitch, NULL, 0, NULL, NULL, &mErrorNumber);
-    if (!checkSuccess(mErrorNumber)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed mapping the input image. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    /* [Map image objects to host pointers] */
-    /* Convert the input data from RGB to RGBA (moves it to the OpenCL allocated memory at the same time). */
-    RGBToRGBA(mGrayBuffer, inputImageRGBA, mWidth, mHeight);
-    if (!checkSuccess(clEnqueueUnmapMemObject(mCommandQueue, mMemoryObjects[0], inputImageRGBA, 0, NULL, NULL))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed unmapping the input image. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    cl_float widthNormalizationFactor = 1.0f / newWidth;
-    cl_float heightNormalizationFactor = 1.0f / newHeight;
-
-    /* Setup the kernel arguments. */
-    bool setKernelArgumentsSuccess = true;
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 0, sizeof(cl_mem), &mMemoryObjects[0]));
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 1, sizeof(cl_mem), &mMemoryObjects[1]));
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 2, sizeof(cl_float), &widthNormalizationFactor));
-    setKernelArgumentsSuccess &= checkSuccess(clSetKernelArg(mKernel, 3, sizeof(cl_float), &heightNormalizationFactor));
-    if (!setKernelArgumentsSuccess) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed setting OpenCL kernel arguments. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-    const INT32 workDimensions = 2;
-    size_t globalWorkSize[workDimensions] = {newWidth, newHeight};
-    /* An event to associate with the kernel. Allows us to retrieve profiling information later. */
-    cl_event event = 0;
-    /* Enqueue the kernel. */
-    if (!checkSuccess(clEnqueueNDRangeKernel(mCommandQueue, mKernel, workDimensions, NULL, globalWorkSize, NULL, 0, NULL, &event))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed enqueuing the kernel. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-
-    /* Wait for kernel execution completion. */
-    if (!checkSuccess(clFinish(mCommandQueue))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed waiting for kernel execution to finish. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-
-    /* Release the event object. */
-    if (!checkSuccess(clReleaseEvent(event))) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed releasing the event object. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-
-    size_t newRegion[3] = {newWidth, newHeight, 1};
-
-    unsigned char* outputImage = (unsigned char*)clEnqueueMapImage(mCommandQueue,  mMemoryObjects[1],
-                CL_TRUE, CL_MAP_READ, origin, newRegion, &rowPitch, NULL, 0, NULL, NULL, &mErrorNumber);
-    if (!checkSuccess(mErrorNumber)) {
-        cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-        cerr << "Failed mapping the input image. " << __FILE__ << ":"<< __LINE__ << endl;
-    }
-
-    unsigned char* outputImageRGB = new unsigned char[newWidth * newHeight * 3];
-    RGBAToRGB(outputImage, outputImageRGB, newWidth, newHeight);
-
-    Mat oImage = Mat(newHeight, newWidth, CV_8UC3, outputImageRGB);
-    imwrite("/data/local/output_cl.jpg", oImage);
-    delete[] outputImageRGB;
-    cleanUpOpenCL(mContext, mCommandQueue, mProgram, mKernel, mMemoryObjects, mNumMemoryObjects);
-    printf("finished runing scaling image\n");
 }

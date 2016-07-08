@@ -35,34 +35,34 @@ private:
     INT32 mWidth;
     INT32 mHeight;
     UINT8* mGrayBuffer;
-    UINT32* mIntefralBuffer;
+    UINT32* mIntegralBuffer;
+    float* mToneMapLut;
+    float mGainOffset;
 public:
-    void integralImage();
     void process();
-    void scale();
-    bool loadData(string path);
+    bool loadData(string path,bool pgm = true);
 private:
     INT32 mGrayBufferSize;
-    INT32 mIntefralBufferSize;
+    INT32 mIntegralBufferSize;
     cl_int mArraySize;
 private:
     cl_context mContext;
     cl_command_queue mCommandQueue;
     cl_program mProgram;
     cl_device_id mDevice;
-    cl_kernel mKernel;
     cl_kernel mKernelPSH;
     cl_kernel mKernelPSV;
     cl_kernel mKernelTM;
     const INT32 mNumMemoryObjects;
-    cl_mem mMemoryObjects[2];
+    cl_mem mMemoryObjects[5];
     cl_int mErrorNumber;
     double mStart, mEnd;
 private:
     bool initWdr();
-    INT32 initOpenCL();
-    void preSumHorizontal();
-    void preSumVertical();
+    bool integralImage();
+    bool toneMapping();
+    bool preSumHorizontal();
+    bool preSumVertical();
     string errorNumberToString(cl_int errorNumber);
     inline bool checkSuccess(cl_int errorNumber);
     bool cleanUpOpenCL(cl_context context, cl_command_queue commandQueue, cl_program program,
@@ -71,9 +71,6 @@ private:
     bool createCommandQueue(cl_context context, cl_command_queue* commandQueue, cl_device_id* device);
     bool createProgram(cl_context context, cl_device_id device, string filename, cl_program* program);
 
-private:
-    bool RGBToRGBA(const unsigned char* const rgbData, unsigned char* const rgbaData, INT32 width, INT32 height);
-    bool RGBAToRGB(const unsigned char* const rgbaData, unsigned char* const rgbData, INT32 width, INT32 height);
 };
 
 
