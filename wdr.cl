@@ -35,6 +35,7 @@ __kernel void wdr( __global unsigned char* _pSrc,__global float* mToneMapLut,
         // uchar16 line14  = vload16(0,origin + 13*nCols - 8);
         // uchar16 line15  = vload16(0,origin + 14*nCols - 8);
         // uchar16 line16  = vload16(0,origin + 15*nCols - 8);
+
         uchar8 curLumi;
         uchar8 pixel = vload8(0,pSrc);
         int8 pixelLumi = convert_int8(pixel);
@@ -46,77 +47,78 @@ __kernel void wdr( __global unsigned char* _pSrc,__global float* mToneMapLut,
         //int pixelLumi = (int)*pSrc;
         int indexX = blockAvgLumi;
         int finalPxiel = convert_int(mToneMapLut[pixelLumi.s0*256+indexX]);
-        //int finalPxiel = pixelLumi.s0*(1.18+pixelLumi.s0*blockAvgLumi)/(pixelLumi.s0+blockAvgLumi+0.18);
+        // float a = pixelLumi.s0*half_recip((float)255.0)+blockAvgLumi*half_recip((float)255.0)+0.18;
+        // int finalPxiel = pixelLumi.s0*(1.18+pixelLumi.s0*blockAvgLumi*half_recip((float)65025.0))*half_recip(a);
         curLumi.s0 = (uchar)min(finalPxiel,255);
         //part 2
         sum = convert_int8(line1.s12345678) + convert_int8(line2.s12345678) +
           convert_int8(line3.s12345678)+ convert_int8(line4.s12345678)+ convert_int8(line5.s12345678)
           + convert_int8(line6.s12345678) + convert_int8(line7.s12345678) + convert_int8(line8.s12345678);
         blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)>>6;
-        //pixelLumi = (int)*(pSrc+1);
         indexX = blockAvgLumi;
         finalPxiel = convert_int(mToneMapLut[pixelLumi.s1*256+indexX]);
-        //finalPxiel = pixelLumi.s1*(1.18+pixelLumi.s1*blockAvgLumi)/(pixelLumi.s1+blockAvgLumi+0.18);
+        // a = pixelLumi.s1*half_recip((float)255.0)+blockAvgLumi*half_recip((float)255.0)+0.18;
+        // finalPxiel = pixelLumi.s1*(1.18+pixelLumi.s1*blockAvgLumi*half_recip((float)65025.0))*half_recip(a);
         curLumi.s1 = (uchar)min(finalPxiel,255);
         //part 3
         sum = convert_int8(line1.s3456789a) + convert_int8(line2.s3456789a) +
           convert_int8(line3.s3456789a)+ convert_int8(line4.s3456789a)+ convert_int8(line5.s3456789a)
           + convert_int8(line6.s3456789a) + convert_int8(line7.s3456789a) + convert_int8(line8.s3456789a);
         blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)>>6;
-        //pixelLumi = (int)*(pSrc+2);
         indexX = blockAvgLumi;
         finalPxiel = convert_int(mToneMapLut[pixelLumi.s2*256+indexX]);
-        // finalPxiel = pixelLumi.s2*(1.18+pixelLumi.s2*blockAvgLumi)/(pixelLumi.s2+blockAvgLumi+0.18);
+        // a = pixelLumi.s2*half_recip((float)255.0)+blockAvgLumi*half_recip((float)255.0)+0.18;
+        // finalPxiel = pixelLumi.s2*(1.18+pixelLumi.s2*blockAvgLumi*half_recip((float)65025.0))*half_recip(a);
         curLumi.s2 = (uchar)min(finalPxiel,255);
         //part 4
         sum = convert_int8(line1.s456789ab) + convert_int8(line2.s456789ab) +
           convert_int8(line3.s456789ab)+ convert_int8(line4.s456789ab)+ convert_int8(line5.s456789ab)
           + convert_int8(line6.s456789ab) + convert_int8(line7.s456789ab) + convert_int8(line8.s456789ab);
         blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)>>6;
-        //pixelLumi = (int)*(pSrc+3);
         indexX = blockAvgLumi;
         finalPxiel = convert_int(mToneMapLut[pixelLumi.s3*256+indexX]);
-        // finalPxiel = pixelLumi.s3*(1.18+pixelLumi.s3*blockAvgLumi)/(pixelLumi.s3+blockAvgLumi+0.18);
+        // a = pixelLumi.s3*half_recip((float)255.0)+blockAvgLumi*half_recip((float)255.0)+0.18;
+        // finalPxiel = pixelLumi.s3*(1.18+pixelLumi.s3*blockAvgLumi*half_recip((float)65025.0))*half_recip(a);
         curLumi.s3 = (uchar)min(finalPxiel,255);
         //part 5
         sum = convert_int8(line1.s56789abc) + convert_int8(line2.s56789abc) +
           convert_int8(line3.s56789abc)+ convert_int8(line4.s56789abc)+ convert_int8(line5.s56789abc)
           + convert_int8(line6.s56789abc) + convert_int8(line7.s56789abc) + convert_int8(line8.s56789abc);
         blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)>>6;
-        //pixelLumi = (int)*(pSrc+4);
         indexX = blockAvgLumi;
         finalPxiel = convert_int(mToneMapLut[pixelLumi.s4*256+indexX]);
-        // finalPxiel = pixelLumi.s4*(1.18+pixelLumi.s4*blockAvgLumi)/(pixelLumi.s4+blockAvgLumi+0.18);
+        // a = pixelLumi.s4*half_recip((float)255.0)+blockAvgLumi*half_recip((float)255.0)+0.18;
+        // finalPxiel = pixelLumi.s4*(1.18+pixelLumi.s4*blockAvgLumi*half_recip((float)65025.0))*half_recip(a);
         curLumi.s4 = (uchar)min(finalPxiel,255);
         //part 6
         sum = convert_int8(line1.s6789abcd) + convert_int8(line2.s6789abcd) +
           convert_int8(line3.s6789abcd)+ convert_int8(line4.s6789abcd)+ convert_int8(line5.s6789abcd)
           + convert_int8(line6.s6789abcd) + convert_int8(line7.s6789abcd) + convert_int8(line8.s6789abcd);
         blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)>>6;
-        //pixelLumi = (int)*(pSrc+5);
         indexX = blockAvgLumi;
         finalPxiel = convert_int(mToneMapLut[pixelLumi.s5*256+indexX]);
-        // finalPxiel = pixelLumi.s5*(1.18+pixelLumi.s5*blockAvgLumi)/(pixelLumi.s5+blockAvgLumi+0.18);
+        // a = pixelLumi.s5*half_recip((float)255.0)+blockAvgLumi*half_recip((float)255.0)+0.18;
+        // finalPxiel = pixelLumi.s5*(1.18+pixelLumi.s5*blockAvgLumi*half_recip((float)65025.0))*half_recip(a);
         curLumi.s5 = (uchar)min(finalPxiel,255);
         //part 7
         sum = convert_int8(line1.s789abcde) + convert_int8(line2.s789abcde) +
           convert_int8(line3.s789abcde)+ convert_int8(line4.s789abcde)+ convert_int8(line5.s789abcde)
           + convert_int8(line6.s789abcde) + convert_int8(line7.s789abcde) + convert_int8(line8.s789abcde);
         blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)>>6;
-        //pixelLumi = (int)*(pSrc+6);
         indexX = blockAvgLumi;
         finalPxiel = convert_int(mToneMapLut[pixelLumi.s6*256+indexX]);
-        // finalPxiel = pixelLumi.s6*(1.18+pixelLumi.s6*blockAvgLumi)/(pixelLumi.s6+blockAvgLumi+0.18);
+        // a = pixelLumi.s6*half_recip((float)255.0)+blockAvgLumi*half_recip((float)255.0)+0.18;
+        // finalPxiel = pixelLumi.s6*(1.18+pixelLumi.s6*blockAvgLumi*half_recip((float)65025.0))*half_recip(a);
         curLumi.s6 = (uchar)min(finalPxiel,255);
         //part 8
         sum = convert_int8(line1.s89abcdef) + convert_int8(line2.s89abcdef) +
           convert_int8(line3.s89abcdef)+ convert_int8(line4.s89abcdef)+ convert_int8(line5.s89abcdef)
           + convert_int8(line6.s89abcdef) + convert_int8(line7.s89abcdef) + convert_int8(line8.s89abcdef);
         blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)>>6;
-        //pixelLumi = (int)*(pSrc+7);
         indexX = blockAvgLumi;
         finalPxiel = convert_int(mToneMapLut[pixelLumi.s7*256+indexX]);
-        // finalPxiel = pixelLumi.s7*(1.18+pixelLumi.s7*blockAvgLumi)/(pixelLumi.s7+blockAvgLumi+0.18);
+        // a = pixelLumi.s7*half_recip((float)255.0)+blockAvgLumi*half_recip((float)255.0)+0.18;
+        // finalPxiel = pixelLumi.s7*(1.18+pixelLumi.s7*blockAvgLumi*half_recip((float)65025.0))*half_recip(a);
         curLumi.s7 = (uchar)min(finalPxiel,255);
 
         vstore8(curLumi,0,pDst);
@@ -130,15 +132,6 @@ __kernel void wdr( __global unsigned char* _pSrc,__global float* mToneMapLut,
         // *pDst = curLumi;
 
     }
-
-    // uchar16 line9  = vload16(0,pSrc + 8*origin);
-    // uchar16 line10 = vload16(0,pSrc + 9*origin);
-    // uchar16 line11 = vload16(0,pSrc + 10*origin);
-    // uchar16 line12 = vload16(0,pSrc + 11*origin);
-    // uchar16 line13 = vload16(0,pSrc + 12*origin);
-    // uchar16 line14 = vload16(0,pSrc + 13*origin);
-    // uchar16 line15 = vload16(0,pSrc + 14*origin);
-    // uchar16 line16 = vload16(0,pSrc + 15*origin);
 
 }
 
