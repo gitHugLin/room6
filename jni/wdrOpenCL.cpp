@@ -27,15 +27,14 @@ wdrOpenCL::wdrOpenCL() : mNumMemoryObjects(3) {
   mTMBufferSize = 256 * 256 * sizeof(float);
   mGrayBufferSize = 0;
   mToneMapLut = NULL;
-  float mGainOffset = 0.25;
-  for (int i = 0; i < mNumMemoryObjects; i++) {
+  float mGainOffset = 0.15;
+  for (int i = 0; i < mNumMemoryObjects; i++)
     mMemoryObjects[i] = 0;
-  }
   mToneMapLut = new float[256 * 256];
   for (int y = 0; y < 256; y++) {
     for (int x = 0; x < 256; x++) {
-      float lumiBlk = (float)y / 255, lumiPixel = (float)x / 255;
-      mToneMapLut[y * 256 + x] = (1 + mGainOffset + lumiBlk * lumiPixel) /
+      float lumiBlk = (float)x / 255, lumiPixel = (float)y / 255;
+      mToneMapLut[y * 256 + x] = y * (1 + mGainOffset + lumiBlk * lumiPixel) /
                                  (lumiBlk + lumiPixel + mGainOffset);
     }
   }
