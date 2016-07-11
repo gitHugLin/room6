@@ -1,8 +1,146 @@
-
-#define LOCAL_BUFFER_SIZE 64
-
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #define min(a,b)        ((a) > (b)?(b):(a))
 #define max(a,b)        ((a) > (b)?(a):(b))
+
+
+__kernel void wdr( __global unsigned char* _pSrc,__global float* mToneMapLut,
+                            __global unsigned char* _pDst, const int nCols ,const int nRows)
+{
+    const int x = get_global_id(0)*8;
+    const int y = get_global_id(1);
+    const int index = y*nCols + x;
+    // const xMax = min(x,nRows - 16);
+    // const xMin = max(x,nRows - 16);
+    // const yMax = min(y,nCols - 16);
+    // const yMin = max(y,nCols - 16);
+
+
+    __global uchar* pSrc = y*nCols + x + _pSrc;
+    __global uchar* pDst = y*nCols + x + _pDst;
+
+    if(x >= 8 && y >= 8 && x <= nCols-8 && y <= nRows-8) {
+        __global uchar* origin = pSrc-3*nCols;
+        uchar16 line1   = vload16(0,origin - 8);
+        uchar16 line2   = vload16(0,origin + nCols - 8);
+        uchar16 line3   = vload16(0,origin + 2*nCols - 8);
+        uchar16 line4   = vload16(0,origin + 3*nCols - 8);
+        uchar16 line5   = vload16(0,origin + 4*nCols - 8);
+        uchar16 line6   = vload16(0,origin + 5*nCols - 8);
+        uchar16 line7   = vload16(0,origin + 6*nCols - 8);
+        uchar16 line8   = vload16(0,origin + 7*nCols - 8);
+        // uchar16 line9   = vload16(0,origin + 8*nCols - 8);
+        // uchar16 line10  = vload16(0,origin + 9*nCols - 8);
+        // uchar16 line11  = vload16(0,origin + 10*nCols - 8);
+        // uchar16 line12  = vload16(0,origin + 11*nCols - 8);
+        // uchar16 line13  = vload16(0,origin + 12*nCols - 8);
+        // uchar16 line14  = vload16(0,origin + 13*nCols - 8);
+        // uchar16 line15  = vload16(0,origin + 14*nCols - 8);
+        // uchar16 line16  = vload16(0,origin + 15*nCols - 8);
+        uchar8 curLumi;
+        //part 1
+        int8 sum = convert_int8(line1.s01234567) + convert_int8(line2.s01234567) +
+          convert_int8(line3.s01234567)+ convert_int8(line4.s01234567)+ convert_int8(line5.s01234567)
+          + convert_int8(line6.s01234567) + convert_int8(line7.s01234567) + convert_int8(line8.s01234567);
+        int blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)/64;
+        int pixelLumi = (int)*pSrc;
+        int indexX = blockAvgLumi;
+        float gain = mToneMapLut[pixelLumi*256+indexX];
+        int finalPxie = gain*pixelLumi;
+        curLumi.s0 = (uchar)min(finalPxie,255);
+        //part 2
+        sum = convert_int8(line1.s12345678) + convert_int8(line2.s12345678) +
+          convert_int8(line3.s12345678)+ convert_int8(line4.s12345678)+ convert_int8(line5.s12345678)
+          + convert_int8(line6.s12345678) + convert_int8(line7.s12345678) + convert_int8(line8.s12345678);
+        blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)/64;
+        pixelLumi = (int)*(pSrc+1);
+        indexX = blockAvgLumi;
+        gain = mToneMapLut[pixelLumi*256+indexX];
+        finalPxie = gain*pixelLumi;
+        curLumi.s1 = (uchar)min(finalPxie,255);
+        //part 3
+        sum = convert_int8(line1.s3456789a) + convert_int8(line2.s3456789a) +
+          convert_int8(line3.s3456789a)+ convert_int8(line4.s3456789a)+ convert_int8(line5.s3456789a)
+          + convert_int8(line6.s3456789a) + convert_int8(line7.s3456789a) + convert_int8(line8.s3456789a);
+        blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)/64;
+        pixelLumi = (int)*(pSrc+2);
+        indexX = blockAvgLumi;
+        gain = mToneMapLut[pixelLumi*256+indexX];
+        finalPxie = gain*pixelLumi;
+        curLumi.s2 = (uchar)min(finalPxie,255);
+        //part 4
+        sum = convert_int8(line1.s456789ab) + convert_int8(line2.s456789ab) +
+          convert_int8(line3.s456789ab)+ convert_int8(line4.s456789ab)+ convert_int8(line5.s456789ab)
+          + convert_int8(line6.s456789ab) + convert_int8(line7.s456789ab) + convert_int8(line8.s456789ab);
+        blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)/64;
+        pixelLumi = (int)*(pSrc+3);
+        indexX = blockAvgLumi;
+        gain = mToneMapLut[pixelLumi*256+indexX];
+        finalPxie = gain*pixelLumi;
+        curLumi.s3 = (uchar)min(finalPxie,255);
+        //part 5
+        sum = convert_int8(line1.s56789abc) + convert_int8(line2.s56789abc) +
+          convert_int8(line3.s56789abc)+ convert_int8(line4.s56789abc)+ convert_int8(line5.s56789abc)
+          + convert_int8(line6.s56789abc) + convert_int8(line7.s56789abc) + convert_int8(line8.s56789abc);
+        blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)/64;
+        pixelLumi = (int)*(pSrc+4);
+        indexX = blockAvgLumi;
+        gain = mToneMapLut[pixelLumi*256+indexX];
+        finalPxie = gain*pixelLumi;
+        curLumi.s4 = (uchar)min(finalPxie,255);
+        //part 6
+        sum = convert_int8(line1.s6789abcd) + convert_int8(line2.s6789abcd) +
+          convert_int8(line3.s6789abcd)+ convert_int8(line4.s6789abcd)+ convert_int8(line5.s6789abcd)
+          + convert_int8(line6.s6789abcd) + convert_int8(line7.s6789abcd) + convert_int8(line8.s6789abcd);
+        blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)/64;
+        pixelLumi = (int)*(pSrc+5);
+        indexX = blockAvgLumi;
+        gain = mToneMapLut[pixelLumi*256+indexX];
+        finalPxie = gain*pixelLumi;
+        curLumi.s5 = (uchar)min(finalPxie,255);
+        //part 7
+        sum = convert_int8(line1.s789abcde) + convert_int8(line2.s789abcde) +
+          convert_int8(line3.s789abcde)+ convert_int8(line4.s789abcde)+ convert_int8(line5.s789abcde)
+          + convert_int8(line6.s789abcde) + convert_int8(line7.s789abcde) + convert_int8(line8.s789abcde);
+        blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)/64;
+        pixelLumi = (int)*(pSrc+6);
+        indexX = blockAvgLumi;
+        gain = mToneMapLut[pixelLumi*256+indexX];
+        finalPxie = gain*pixelLumi;
+        curLumi.s6 = (uchar)min(finalPxie,255);
+        //part 8
+        sum = convert_int8(line1.s89abcdef) + convert_int8(line2.s89abcdef) +
+          convert_int8(line3.s89abcdef)+ convert_int8(line4.s89abcdef)+ convert_int8(line5.s89abcdef)
+          + convert_int8(line6.s89abcdef) + convert_int8(line7.s89abcdef) + convert_int8(line8.s89abcdef);
+        blockAvgLumi = (sum.s0 + sum.s1 + sum.s2 +sum.s3 + sum.s4 + sum.s5 + sum.s6 + sum.s7)/64;
+        pixelLumi = (int)*(pSrc+7);
+        indexX = blockAvgLumi;
+        gain = mToneMapLut[pixelLumi*256+indexX];
+        finalPxie = gain*pixelLumi;
+        curLumi.s7 = (uchar)min(finalPxie,255);
+
+        vstore8(curLumi,0,pDst);
+        //*pDst = curLumi;
+    } else {
+
+        // int pixelLumi = (int)*pSrc;
+        // float gain = mToneMapLut[pixelLumi*256+pixelLumi];
+        // int finalPxie = gain*pixelLumi;
+        // uchar curLumi = (uchar)min(finalPxie,255);
+        // *pDst = curLumi;
+
+    }
+
+    // uchar16 line9  = vload16(0,pSrc + 8*origin);
+    // uchar16 line10 = vload16(0,pSrc + 9*origin);
+    // uchar16 line11 = vload16(0,pSrc + 10*origin);
+    // uchar16 line12 = vload16(0,pSrc + 11*origin);
+    // uchar16 line13 = vload16(0,pSrc + 12*origin);
+    // uchar16 line14 = vload16(0,pSrc + 13*origin);
+    // uchar16 line15 = vload16(0,pSrc + 14*origin);
+    // uchar16 line16 = vload16(0,pSrc + 15*origin);
+
+}
+
 
 __kernel void preSumHorizontal( __global unsigned char* _pSrc ,
                             __global unsigned int* _pDst ,const int width ,const int height)
@@ -44,8 +182,8 @@ __kernel void toneMapping( __global unsigned int* pIntegral ,__global unsigned c
 
     int blockAvgLumi = *(pIntegral+xMax+yMax*nCols) - *(pIntegral+xMin+yMax*nCols) -
                 *(pIntegral+xMax+yMin*nCols) + *(pIntegral+xMin+yMin*nCols);
-    blockAvgLumi = blockAvgLumi/((yMax - yMin + 2)*(xMax - xMin + 2));
-    //blockAvgLumi = blockAvgLumi>>10;
+    blockAvgLumi = blockAvgLumi/((yMax - yMin)*(xMax - xMin));
+
     int offsetGray = y*nCols+x;
     int indexX = blockAvgLumi;
     int indexY = *(pGray+offsetGray);

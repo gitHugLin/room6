@@ -1,8 +1,7 @@
 obj/local/armeabi-v7a/objs/opencl-wdr/wdrOpenCL.o: jni/wdrOpenCL.cpp \
  jni/wdrOpenCL.h \
- /Users/linqi/Library/Android/sdk/ndk-bundle/sources/cxx-stl/gnu-libstdc++/4.9/include/iostream \
- /Users/linqi/Library/Android/sdk/ndk-bundle/sources/cxx-stl/gnu-libstdc++/4.9/include/sstream \
  /Users/linqi/Library/Android/sdk/ndk-bundle/sources/cxx-stl/gnu-libstdc++/4.9/include/fstream \
+ /Users/linqi/Library/Android/sdk/ndk-bundle/sources/cxx-stl/gnu-libstdc++/4.9/include/iostream \
  jni/log.h \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/core/core.hpp \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/core.hpp \
@@ -36,25 +35,23 @@ obj/local/armeabi-v7a/objs/opencl-wdr/wdrOpenCL.o: jni/wdrOpenCL.cpp \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/core/core_c.h \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/core/types_c.h \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/core/optim.hpp \
- /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/imgproc.hpp \
- /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc.hpp \
- /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/imgproc_c.h \
- /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/types_c.h \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/highgui/highgui.hpp \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/highgui.hpp \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgcodecs.hpp \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/videoio.hpp \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/highgui/highgui_c.h \
+ /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/imgproc_c.h \
+ /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/types_c.h \
  /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgcodecs/imgcodecs_c.h \
- /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/videoio/videoio_c.h
+ /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/videoio/videoio_c.h \
+ /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/imgproc.hpp \
+ /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc.hpp
 
 jni/wdrOpenCL.h:
 
-/Users/linqi/Library/Android/sdk/ndk-bundle/sources/cxx-stl/gnu-libstdc++/4.9/include/iostream:
-
-/Users/linqi/Library/Android/sdk/ndk-bundle/sources/cxx-stl/gnu-libstdc++/4.9/include/sstream:
-
 /Users/linqi/Library/Android/sdk/ndk-bundle/sources/cxx-stl/gnu-libstdc++/4.9/include/fstream:
+
+/Users/linqi/Library/Android/sdk/ndk-bundle/sources/cxx-stl/gnu-libstdc++/4.9/include/iostream:
 
 jni/log.h:
 
@@ -122,14 +119,6 @@ jni/log.h:
 
 /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/core/optim.hpp:
 
-/Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/imgproc.hpp:
-
-/Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc.hpp:
-
-/Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/imgproc_c.h:
-
-/Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/types_c.h:
-
 /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/highgui/highgui.hpp:
 
 /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/highgui.hpp:
@@ -140,6 +129,14 @@ jni/log.h:
 
 /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/highgui/highgui_c.h:
 
+/Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/imgproc_c.h:
+
+/Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/types_c.h:
+
 /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgcodecs/imgcodecs_c.h:
 
 /Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/videoio/videoio_c.h:
+
+/Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc/imgproc.hpp:
+
+/Users/linqi/SDKDir/OpenCV-android-sdk/sdk/native/jni/include/opencv2/imgproc.hpp:
